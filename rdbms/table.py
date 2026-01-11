@@ -15,8 +15,9 @@ class MiniDB:
       - loads/saves catalog (schemas)
       - stores rows in JSONL files
       - enforces PRIMARY KEY and UNIQUE via HashIndex
-      - supports INSERT and SELECT (with simple WHERE)
+      - supports INSERT, SELECT, UPDATE, DELETE (simple WHERE)
     """
+
     def __init__(self, storage: Storage) -> None:
         self.storage = storage
         self.catalog: Catalog = self.storage.load_catalog()
@@ -141,3 +142,71 @@ class MiniDB:
                 else:
                     out.append({c: r.get(c) for c in columns})
         return out
+
+    def update(
+        self,
+        table: str,
+        updates: Dict[str, Any],
+        where: Optional[Where] = None,
+    ) -> int:
+        """
+        Update rows that match WHERE. Returns number of rows updated.
+
+        Simple implementation:
+        - reads all rows
+        - applies updates
+        - rewrites table file
+        - rebuilds indexes
+
+        This is not transactional (fine for this challenge).
+        """
+        schema = self.catalog.get(table)
+        cmap = schema.column_map()
+
+        rows = self.storage.read_rows(table)
+        new_rows: List[Dict[str, Any]] = []
+        updated_count = 0
+
+        for r in rows:
+            if self._match_where(r, where):
+                updated = dict(r)
+
+                for col_name, new_val in updates.items():
+                    if col_name not in cmap:
+                        raise ValueError(f"Unknown column: {col_name}")
+                    col = cmap[col_name]
+                    updated[col_name] = coerce_value(col.col_type, new_val)
+                    if col.not_null and updated[col_name] is None:
+                        raise ValueError(f"{col_name} cannot be NULL")
+
+                new_rows.append(updated)
+                updated_count += 1
+            else:
+                new_rows.append(r)
+
+        self.storage.rewrite_rows(table, new_rows)
+        self._rebuild_indexes_for_table(table)
+        return updated_count
+
+    def delete(self, table: str, where: Optional[Where] = None) -> int:
+        """
+        Delete rows that match WHERE. Returns number of rows deleted.
+
+        Simple implementation:
+        - filters rows
+        - rewrites table file
+        - rebuilds indexes
+        """
+        rows = self.storage.read_rows(table)
+        kept: List[Dict[str, Any]] = []
+        deleted = 0
+
+        for r in rows:
+            if self._match_where(r, where):
+                deleted += 1
+            else:
+                kept.append(r)
+
+        self.storage.rewrite_rows(table, kept)
+        self._rebuild_indexes_for_table(table)
+        return deleted
