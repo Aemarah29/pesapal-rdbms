@@ -1,0 +1,30 @@
+{
+  "tables": {
+    "tasks": {
+      "name": "tasks",
+      "columns": [
+        {
+          "name": "id",
+          "col_type": "INT",
+          "primary_key": true,
+          "unique": false,
+          "not_null": false
+        },
+        {
+          "name": "title",
+          "col_type": "TEXT",
+          "primary_key": false,
+          "unique": false,
+          "not_null": true
+        },
+        {
+          "name": "done",
+          "col_type": "BOOL",
+          "primary_key": false,
+          "unique": false,
+          "not_null": true
+        }
+      ]
+    }
+  }
+}
